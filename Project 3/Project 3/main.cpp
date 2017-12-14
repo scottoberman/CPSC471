@@ -3,6 +3,7 @@
 *
 *   Dijkstra's Algorithm through a directed graph
 *
+*   By: Scott Oberman
 ******************************************************************************/
 
 #include <iostream>
@@ -12,60 +13,6 @@
 #include <vector>
 
 using namespace std;
-
-class Edge;
-
-class Node
-{
-public:
-    bool AddEdge(const char OTHER_ID, const unsigned int WEIGHT);
-    unsigned int GetWeight() const;
-    void SetWeight(const int WEIGHT);
-    char GetParent() const;
-    void SetParent(const char PARENT_ID);
-    vector<Edge> edges;
-
-    bool operator< (const Node &RHS) const;
-private:
-    char id;
-    
-    unsigned int weight;
-    char parentId;
-};
-
-bool Node::AddEdge(const char OTHER_ID, const unsigned int WEIGHT)
-{
-    //Edge newEdge(id, OTHER_ID, WEIGHT);
-
-    //edges.emplace_back(newEdge);
-
-    return true;
-}
-
-unsigned int Node::GetWeight() const
-{
-    return weight;
-}
-
-void Node::SetWeight(const int WEIGHT)
-{
-    weight = WEIGHT;
-}
-
-char Node::GetParent() const
-{
-    return parentId;
-}
-
-void Node::SetParent(const char PARENT_ID)
-{
-    parentId = PARENT_ID;
-}
-
-bool Node::operator< (const Node &RHS) const
-{
-    return weight < RHS.GetWeight();
-}
 
 class Edge
 {
@@ -98,95 +45,242 @@ char Edge::GetDestination() const
     return destId;
 }
 
+class Node
+{
+public:
+    Node(const char ID);
+    bool AddEdge(const char OTHER_ID, const unsigned int WEIGHT);
+    char GetId() const;
+    unsigned int GetWeight() const;
+    void SetWeight(const int WEIGHT);
+    char GetParent() const;
+    void SetParent(const char PARENT_ID);
+    vector<Edge> edges;
+
+    bool operator< (const Node &RHS) const;
+private:
+    char id;
+    
+    unsigned int weight;
+    char parentId;
+};
+
+Node::Node(const char ID)
+{
+    id = ID;
+    parentId = '0';
+}
+
+bool Node::AddEdge(const char OTHER_ID, const unsigned int WEIGHT)
+{
+    Edge newEdge(id, OTHER_ID, WEIGHT);
+
+    edges.emplace_back(newEdge);
+
+    return true;
+}
+
+char Node::GetId() const
+{
+    return id;
+}
+
+unsigned int Node::GetWeight() const
+{
+    return weight;
+}
+
+void Node::SetWeight(const int WEIGHT)
+{
+    weight = WEIGHT;
+}
+
+char Node::GetParent() const
+{
+    return parentId;
+}
+
+void Node::SetParent(const char PARENT_ID)
+{
+    parentId = PARENT_ID;
+}
+
 unsigned int Edge::GetLength() const
 {
     return length;
 }
 
-
-
-class Graph
+unsigned int FindShortestPath(map<char, Node>& nodes, const char START, const char DEST)
 {
-public:
-    unsigned int FindShortestPath(map<char, Node>& nodes, const char START, const char DEST);
-
-private:
-    map<char, Node> nodes;
-
-};
-
-unsigned int Graph::FindShortestPath(map<char, Node>& nodes, const char START, const char DEST)
-{
-    priority_queue<Node*> nodesRemaining;
+    vector<Node*> nodesRemaining;
     map<char, char> nodesVisited;
     Node* nodeStart = &(nodes.find(START)->second);
     Node* nodeDest = &(nodes.find(DEST)->second);
-    nodeStart->SetWeight(0);
+    //nodeStart->SetWeight(0);
 
-    nodesRemaining.emplace(nodeStart);
+    nodesRemaining.emplace_back(nodeStart);
+    nodesRemaining.back()->SetWeight(0);
 
     // Make all nodes unvisited
     for (map<char, Node>::iterator mapIter = nodes.begin(); mapIter != nodes.end(); mapIter++)
     {
-        mapIter->second.SetWeight(std::numeric_limits<unsigned int>::max());
-        nodesRemaining.emplace(&mapIter->second);
+        if (mapIter->first != nodeStart->GetId())
+        {
+            mapIter->second.SetWeight(1000);
+            nodesRemaining.emplace_back(&mapIter->second);
+        }
     }
 
     // Execute Dijkstras
-    Node* iter;
+    vector<Node*>::iterator iter = nodesRemaining.begin();
+    int index = 0;
+    Node* tempDest;
+    unsigned int tempWeight;
     while (!nodesRemaining.empty())
     {
-        // Go to each edge and check weights to see if changes are necessary
-        unsigned int tempWeight;
-        Node* edgeDest;
-        for (vector<Edge>::iterator edgeIter = (nodesRemaining.top()->edges.begin()); edgeIter != nodesRemaining.top()->edges.end(); edgeIter++)
+        // Check each edge of the active node
+        for (int x = 0; x < (*iter)->edges.size(); x++)
         {
-            tempWeight = nodesRemaining.top()->GetWeight() + edgeIter->GetLength();
-            edgeDest = &(nodes.find(edgeIter->GetDestination()))->second;
-
-            // If the length of the edge from the current node is shorter than the previous weight, change the destination node weight
-            if (nodesVisited.find(edgeIter->GetDestination()) !=nodesVisited.end()  && tempWeight < nodes.find(edgeIter->GetDestination())->second.GetWeight())
+            tempDest = &nodes.find((*iter)->edges[x].GetDestination())->second;
+            tempWeight = (*iter)->GetWeight() + (*iter)->edges[x].GetLength();
+            // If the node across an edge has not been resolved, resolve it
+            if (nodesVisited.find((*iter)->edges[x].GetDestination()) == nodesVisited.end())
             {
-                edgeDest->SetWeight(tempWeight);
+                // If the weight of an edge from the active node to the node across this edge is
+                // less than the weight of the node across the edge, set a new node for that edge.
+                // Also, make the active node its parent.
+                if (tempWeight < tempDest->GetWeight())
+                {
+                    tempDest->SetWeight(tempWeight);
+                    tempDest->SetParent((*iter)->GetId());
+                }
             }
         }
-        nodesRemaining.pop();
-    }
 
+        // Add the just resolved node to the map of resolved nodes
+        nodesVisited.emplace((*iter)->GetId(), (*iter)->GetId());
+
+        // Remove the just resolved node from the vector of unsrolved nodes
+        nodesRemaining.erase(iter);
+
+        // If there are more nodes to resolve, find the next node of least weight
+        if (!nodesRemaining.empty())
+        {
+            iter = nodesRemaining.begin();
+            // Find the next node of least weight
+            for (vector<Node*>::iterator nextNodeCheck = nodesRemaining.begin(); nextNodeCheck != nodesRemaining.end(); nextNodeCheck++)
+            {
+                if ((*iter)->GetWeight() > (*nextNodeCheck)->GetWeight())
+                {
+                    iter = nextNodeCheck;
+                }
+            }
+        }
+    }
 
     // Output path from destination node to source node
     cout << "Path from selected source node to destination node: " << endl;
     stack<Node> path;
-    iter = nodeDest;
-    while (iter)
+    Node* outputIter = nodeDest;
+
+    if (nodeDest->GetWeight() < 100)
     {
-        path.emplace(*iter);
-        iter = &(nodes.find(DEST)->second);
+        // Reverse the order to be output
+        while (outputIter->GetParent() != '0')
+        {
+            path.push(*outputIter);
+
+            outputIter = &(nodes.find(outputIter->GetParent())->second);
+        }
+
+        path.push(outputIter->GetId());
+
+
+
+        // Output the path
+        while (!path.empty())
+        {
+            cout << path.top().GetId() << " ";
+
+            if (path.top().GetParent() != '0')
+            {
+                cout << path.top().GetWeight() << endl;
+            }
+            else
+            {
+                cout << endl;
+            }
+
+            path.pop();
+        }
+        cout << "Total Weight: " << nodeDest->GetWeight();
+    }
+    else
+    {
+        cout << "Path could not be resolved." << endl;
     }
 
-
-    //
-
-    return 5;
+    return nodeDest->GetWeight();
+    
 }
 
 int main()
 {
-    Node activeNode;
-    map<int, Node> nodes;
+    Node* newNode;
+    map<char, Node> nodes;
     char start;
     char end;
 
-    priority_queue<Node> nodesRemaining;
+    // Node A
+    newNode = new Node('a');
+    newNode->AddEdge('b', 7);
+    newNode->AddEdge('c', 11);
+    newNode->AddEdge('d', 2);
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
+
+    // Node B;
+    newNode = new Node('b');
+    newNode->AddEdge('d', 10);
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
+
+    // Node C
+    newNode = new Node('c');
+    newNode->AddEdge('f', 8);
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
+
+    // Node D
+    newNode = new Node('d');
+    newNode->AddEdge('c', 6);
+    newNode->AddEdge('e', 18);
+    newNode->AddEdge('f', 17);
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
+
+    // Node E *has no outgoing edges*
+    newNode = new Node('e');
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
+
+    // Node F
+    newNode = new Node('f');
+    newNode->AddEdge('e', 1);
+    nodes.emplace(newNode->GetId(), *newNode);
+    delete newNode;
 
     cout << "Enter character of starting node (A-F): ";
     cin.get(start);
 
+    cin.ignore(100, '\n');
+
     cout << "Enter character of destination node (A-F): ";
     cin.get(end);
 
-   // nodes.push_back();
+    FindShortestPath(nodes, start, end);
 
-
+    cin.ignore(100, '\n');
+    cin.get();
 
 }
